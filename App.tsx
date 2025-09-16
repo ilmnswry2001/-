@@ -1,6 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Book, BookFile, BookType, View } from './types';
-import { useLocalStorage } from './hooks/useLocalStorage';
 import Sidebar from './components/Header';
 import Dashboard from './components/Dashboard';
 import BookList from './components/BookList';
@@ -8,14 +7,91 @@ import SearchBar from './components/SearchBar';
 import Modal from './components/Modal';
 import BookForm from './components/BookForm';
 
+// --- Data Service Layer (Simulating a real database API) ---
+// This section is designed to be easily replaced with actual API calls to a backend service like Firebase or Supabase.
+// For now, it uses localStorage but with async functions to mimic network requests.
+
+const BOOKS_STORAGE_KEY = 'books';
+const FAKE_LATENCY = 300; // ms
+
+const getBooksFromStorage = (): Book[] => {
+  const savedValue = localStorage.getItem(BOOKS_STORAGE_KEY);
+  if (savedValue) {
+    try {
+      return JSON.parse(savedValue);
+    } catch (error) {
+      console.error('Error parsing books from localStorage', error);
+      return [];
+    }
+  }
+  return [];
+};
+
+const saveBooksToStorage = (books: Book[]) => {
+  localStorage.setItem(BOOKS_STORAGE_KEY, JSON.stringify(books));
+};
+
+const getBooks = async (): Promise<Book[]> => {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      resolve(getBooksFromStorage());
+    }, FAKE_LATENCY);
+  });
+};
+
+const addBook = async (bookData: Omit<Book, 'id'>): Promise<Book> => {
+   return new Promise(resolve => {
+    setTimeout(() => {
+        const books = getBooksFromStorage();
+        const newBook: Book = { ...bookData, id: Date.now().toString() };
+        const updatedBooks = [...books, newBook];
+        saveBooksToStorage(updatedBooks);
+        resolve(newBook);
+    }, FAKE_LATENCY);
+  });
+};
+
+const updateBook = async (updatedBook: Book): Promise<Book> => {
+    return new Promise(resolve => {
+        setTimeout(() => {
+            let books = getBooksFromStorage();
+            books = books.map(b => b.id === updatedBook.id ? updatedBook : b);
+            saveBooksToStorage(books);
+            resolve(updatedBook);
+        }, FAKE_LATENCY);
+    });
+};
+
+const deleteBookFromDb = async (bookId: string): Promise<void> => {
+    return new Promise(resolve => {
+        setTimeout(() => {
+            let books = getBooksFromStorage();
+            books = books.filter(b => b.id !== bookId);
+            saveBooksToStorage(books);
+            resolve();
+        }, FAKE_LATENCY);
+    });
+};
+
+// --- End of Data Service Layer ---
+
 function App() {
-  const [books, setBooks] = useLocalStorage<Book[]>('books', []);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [bookToEdit, setBookToEdit] = useState<Book | null>(null);
   const [isFilePreviewOpen, setIsFilePreviewOpen] = useState(false);
   const [fileToPreview, setFileToPreview] = useState<BookFile | null>(null);
+  
+  useEffect(() => {
+    setIsLoading(true);
+    getBooks().then(data => {
+      setBooks(data);
+      setIsLoading(false);
+    });
+  }, []);
 
   const handleAddBookClick = () => {
     setBookToEdit(null);
@@ -43,20 +119,22 @@ function App() {
   };
 
 
-  const handleSaveBook = useCallback((bookData: Omit<Book, 'id'> | Book) => {
+  const handleSaveBook = useCallback(async (bookData: Omit<Book, 'id'> | Book) => {
     if ('id' in bookData && bookData.id) { // Editing existing book
-      setBooks(prevBooks => prevBooks.map(b => b.id === bookData.id ? bookData as Book : b));
+      const updatedBook = await updateBook(bookData as Book);
+      setBooks(prevBooks => prevBooks.map(b => b.id === updatedBook.id ? updatedBook : b));
     } else { // Adding new book
-      const newBook = { ...bookData, id: Date.now().toString() } as Book;
+      const newBook = await addBook(bookData);
       setBooks(prevBooks => [...prevBooks, newBook]);
     }
-  }, [setBooks]);
+  }, []);
 
-  const handleDeleteBook = useCallback((bookId: string) => {
+  const handleDeleteBook = useCallback(async (bookId: string) => {
     if (window.confirm('هل أنت متأكد من رغبتك في حذف هذا الكتاب؟ لا يمكن التراجع عن هذا الإجراء.')) {
+      await deleteBookFromDb(bookId);
       setBooks(prevBooks => prevBooks.filter(b => b.id !== bookId));
     }
-  }, [setBooks]);
+  }, []);
 
   const filteredBooks = useMemo(() => {
     let booksToShow = books;
@@ -91,6 +169,20 @@ function App() {
         return '';
     }
   };
+  
+  if (isLoading) {
+    return (
+        <div className="flex justify-center items-center h-screen bg-gray-900 text-white">
+            <div className="text-center">
+                <svg className="animate-spin h-10 w-10 text-blue-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p className="mt-4 text-lg">...جاري تحميل البيانات</p>
+            </div>
+        </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900">
