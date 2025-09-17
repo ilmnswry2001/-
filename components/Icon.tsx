@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface IconProps {
-  name: 'dashboard' | 'inbox' | 'outbox' | 'add' | 'edit' | 'delete' | 'close' | 'search' | 'file' | 'users' | 'logout';
+  name: 'dashboard' | 'inbox' | 'outbox' | 'add' | 'edit' | 'delete' | 'close' | 'search' | 'file' | 'users' | 'logout' | 'barcode';
   className?: string;
 }
 
@@ -17,6 +17,7 @@ const ICONS: Record<IconProps['name'], JSX.Element> = {
   file: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />,
   users: <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-4.663M15 12a3 3 0 11-6 0 3 3 0 016 0z" />,
   logout: <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m-3-3l3-3m0 0l-3-3m3 3H3" />,
+  barcode: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 1v1m-6-2h.01M6 8h.01M7 8v.01M8 8v.01M9 8v.01M10 8v.01M11 8v.01M12 8v.01M13 8v.01M14 8v.01M15 8v.01M16 8v.01M17 8v.01M18 8v.01M6 12h.01M7 12v.01M8 12v.01M9 12v.01M10 12v.01M11 12v.01M12 12v.01M13 12v.01M14 12v.01M15 12v.01M16 12v.01M17 12v.01M18 12v.01M6 16h.01M7 16v.01M8 16v.01M9 16v.01M10 16v.01M11 16v.01M12 16v.01M13 16v.01M14 16v.01M15 16v.01M16 16v.01M17 16v.01M18 16v.01M6 20h.01M7 20v.01M8 20v.01M9 20v.01M10 20v.01M11 20v.01M12 20v.01M13 20v.01M14 20v.01M15 20v.01M16 20v.01M17 20v.01M18 20v.01M4 4h1v1H4V4zm2 2H4v1h2V6zM4 8H3v1h1V8zm1-2h1V5H5v1zm-1 5v-1H3v1h1zm1-1H4v1h1v-1zm1 1v1H5v-1h1zm-2 2H3v1h1v-1zm1-1v1H4v-1h1zm2 1h-1v1h1v-1zm-1-1H5v1h1v-1z" />,
 };
 
 const Icon: React.FC<IconProps> = ({ name, className = 'w-6 h-6' }) => {

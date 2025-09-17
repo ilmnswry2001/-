@@ -8,6 +8,7 @@ export enum View {
   INCOMING = 'incoming',
   OUTGOING = 'outgoing',
   USER_MANAGEMENT = 'user_management',
+  BARCODE_GENERATOR = 'barcode_generator',
 }
 
 export interface BookFile {

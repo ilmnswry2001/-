@@ -8,77 +8,8 @@ import Modal from './components/Modal';
 import BookForm from './components/BookForm';
 import Login from './components/Login';
 import UserManagement from './components/UserManagement';
-
-// --- Data Service Layer ---
-const FAKE_LATENCY = 300;
-
-// --- Book Service ---
-const BOOKS_STORAGE_KEY = 'books';
-const getBooksFromStorage = (): Book[] => {
-  const savedValue = localStorage.getItem(BOOKS_STORAGE_KEY);
-  return savedValue ? JSON.parse(savedValue) : [];
-};
-const saveBooksToStorage = (books: Book[]) => {
-  localStorage.setItem(BOOKS_STORAGE_KEY, JSON.stringify(books));
-};
-const getBooks = async (): Promise<Book[]> => new Promise(resolve => setTimeout(() => resolve(getBooksFromStorage()), FAKE_LATENCY));
-const addBookToDb = async (bookData: Omit<Book, 'id'>): Promise<Book> => new Promise(resolve => {
-  setTimeout(() => {
-    const books = getBooksFromStorage();
-    const newBook: Book = { ...bookData, id: Date.now().toString() };
-    saveBooksToStorage([...books, newBook]);
-    resolve(newBook);
-  }, FAKE_LATENCY);
-});
-const updateBookInDb = async (updatedBook: Book): Promise<Book> => new Promise(resolve => {
-  setTimeout(() => {
-    let books = getBooksFromStorage();
-    books = books.map(b => b.id === updatedBook.id ? updatedBook : b);
-    saveBooksToStorage(books);
-    resolve(updatedBook);
-  }, FAKE_LATENCY);
-});
-const deleteBookFromDb = async (bookId: string): Promise<void> => new Promise(resolve => {
-  setTimeout(() => {
-    let books = getBooksFromStorage();
-    books = books.filter(b => b.id !== bookId);
-    saveBooksToStorage(books);
-    resolve();
-  }, FAKE_LATENCY);
-});
-
-// --- User Service ---
-const USERS_STORAGE_KEY = 'users';
-const getUsersFromStorage = (): User[] => {
-    const savedValue = localStorage.getItem(USERS_STORAGE_KEY);
-    if (savedValue) {
-        return JSON.parse(savedValue);
-    }
-    // Bootstrap with a default admin user if no users exist
-    const adminUser: User = { id: '1', username: 'admin', password: 'admin', role: 'admin' };
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify([adminUser]));
-    return [adminUser];
-};
-const saveUsersToStorage = (users: User[]) => {
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-};
-const getUsers = async (): Promise<User[]> => new Promise(resolve => setTimeout(() => resolve(getUsersFromStorage()), FAKE_LATENCY));
-const addUserToDb = async (userData: Omit<User, 'id' | 'role'>): Promise<User> => new Promise(resolve => {
-    setTimeout(() => {
-        const users = getUsersFromStorage();
-        const newUser: User = { ...userData, id: Date.now().toString(), role: 'user' };
-        saveUsersToStorage([...users, newUser]);
-        resolve(newUser);
-    }, FAKE_LATENCY);
-});
-const deleteUserFromDb = async (userId: string): Promise<void> => new Promise(resolve => {
-    setTimeout(() => {
-        let users = getUsersFromStorage();
-        users = users.filter(u => u.id !== userId);
-        saveUsersToStorage(users);
-        resolve();
-    }, FAKE_LATENCY);
-});
+import BarcodeGenerator from './components/BarcodeGenerator';
+import { api } from './services/api';
 
 // --- Main App Component ---
 function App() {
@@ -95,56 +26,94 @@ function App() {
   const [isFilePreviewOpen, setIsFilePreviewOpen] = useState(false);
   const [fileToPreview, setFileToPreview] = useState<BookFile | null>(null);
   
+  // Fetch user data if the user is an admin
+  const fetchUsers = useCallback(async () => {
+    if (currentUser?.role === 'admin') {
+      try {
+        const fetchedUsers = await api.getUsers();
+        setUsers(fetchedUsers);
+      } catch (error) {
+        console.error("Failed to fetch users:", error);
+        // Optionally, show an error message to the admin user
+      }
+    }
+  }, [currentUser]);
+
   // Initial data load and session check
   useEffect(() => {
-    const loadData = async () => {
-      const storedUsers = await getUsers();
-      setUsers(storedUsers);
-
-      const loggedInUserId = sessionStorage.getItem('loggedInUserId');
-      if (loggedInUserId) {
-        const user = storedUsers.find(u => u.id === loggedInUserId);
+    const checkSession = async () => {
+      try {
+        const user = await api.checkLoginStatus(); // API call to check auth status
         if (user) {
           setCurrentUser(user);
-          const storedBooks = await getBooks();
-          setBooks(storedBooks);
+          const userBooks = await api.getBooks(user.id);
+          setBooks(userBooks);
+          if(user.role === 'admin') {
+            const allUsers = await api.getUsers();
+            setUsers(allUsers);
+          }
         }
+      } catch (error) {
+        console.error("Session check failed:", error);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
-    loadData();
+    checkSession();
   }, []);
-  
+
+  useEffect(() => {
+    if (currentView === View.USER_MANAGEMENT) {
+        fetchUsers();
+    }
+  }, [currentView, fetchUsers]);
+
   const handleLogin = async (username: string, password: string): Promise<void> => {
-      const user = users.find(u => u.username === username && u.password === password);
-      if (user) {
-          setIsLoading(true);
-          setAuthError(null);
-          setCurrentUser(user);
-          sessionStorage.setItem('loggedInUserId', user.id);
-          const storedBooks = await getBooks();
-          setBooks(storedBooks);
-          setIsLoading(false);
-      } else {
-          setAuthError('اسم المستخدم أو كلمة المرور غير صحيحة.');
-      }
+    try {
+      setIsLoading(true);
+      setAuthError(null);
+      const user = await api.login(username, password);
+      setCurrentUser(user);
+      const userBooks = await api.getBooks(user.id);
+      setBooks(userBooks);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'اسم المستخدم أو كلمة المرور غير صحيحة.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleLogout = () => {
-      setCurrentUser(null);
-      sessionStorage.removeItem('loggedInUserId');
-      setCurrentView(View.DASHBOARD); // Reset view on logout
+  const handleLogout = async () => {
+      try {
+        await api.logout();
+      } catch (error) {
+        console.error("Logout failed:", error);
+      } finally {
+        setCurrentUser(null);
+        setBooks([]);
+        setCurrentView(View.DASHBOARD);
+      }
   };
   
   const handleAddUser = useCallback(async (userData: Omit<User, 'id' | 'role'>) => {
-    const newUser = await addUserToDb(userData);
-    setUsers(prev => [...prev, newUser]);
+    try {
+        const newUser = await api.addUser(userData);
+        setUsers(prev => [...prev, newUser]);
+    } catch (error) {
+        console.error("Failed to add user:", error);
+        alert("فشل في إضافة المستخدم.");
+    }
   }, []);
 
   const handleDeleteUser = useCallback(async (userId: string) => {
-    if (window.confirm('هل أنت متأكد من حذف هذا المستخدم؟')) {
-      await deleteUserFromDb(userId);
-      setUsers(prev => prev.filter(u => u.id !== userId));
+    if (window.confirm('هل أنت متأكد من حذف هذا المستخدم؟ سيتم حذف جميع كتبه أيضاً.')) {
+        try {
+            await api.deleteUser(userId);
+            setUsers(prev => prev.filter(u => u.id !== userId));
+        } catch (error) {
+            console.error("Failed to delete user:", error);
+            alert("فشل في حذف المستخدم.");
+        }
     }
   }, []);
 
@@ -175,21 +144,33 @@ function App() {
   };
 
   const handleSaveBook = useCallback(async (bookData: Omit<Book, 'id'> | Book) => {
-    if ('id' in bookData && bookData.id) {
-      const updatedBook = await updateBookInDb(bookData as Book);
-      setBooks(prev => prev.map(b => b.id === updatedBook.id ? updatedBook : b));
-    } else {
-      const newBook = await addBookToDb(bookData);
-      setBooks(prev => [...prev, newBook]);
+    if (!currentUser) return;
+    try {
+        if ('id' in bookData && bookData.id) {
+          const updatedBook = await api.updateBook(currentUser.id, bookData as Book);
+          setBooks(prev => prev.map(b => b.id === updatedBook.id ? updatedBook : b));
+        } else {
+          const newBook = await api.addBook(currentUser.id, bookData);
+          setBooks(prev => [...prev, newBook]);
+        }
+    } catch (error) {
+        console.error("Failed to save book:", error);
+        alert("فشل في حفظ الكتاب.");
     }
-  }, []);
+  }, [currentUser]);
 
   const handleDeleteBook = useCallback(async (bookId: string) => {
+    if (!currentUser) return;
     if (window.confirm('هل أنت متأكد من حذف هذا الكتاب؟')) {
-      await deleteBookFromDb(bookId);
-      setBooks(prev => prev.filter(b => b.id !== bookId));
+        try {
+            await api.deleteBook(currentUser.id, bookId);
+            setBooks(prev => prev.filter(b => b.id !== bookId));
+        } catch (error) {
+            console.error("Failed to delete book:", error);
+            alert("فشل في حذف الكتاب.");
+        }
     }
-  }, []);
+  }, [currentUser]);
 
   const filteredBooks = useMemo(() => {
     let booksToShow = books;
@@ -214,6 +195,8 @@ function App() {
             return <Dashboard books={books} onOpenFilePreview={handleOpenFilePreview} />;
         case View.USER_MANAGEMENT:
             return <UserManagement users={users} currentUser={currentUser!} onAddUser={handleAddUser} onDeleteUser={handleDeleteUser} />;
+        case View.BARCODE_GENERATOR:
+            return <BarcodeGenerator />;
         default:
             const title = currentView === View.INCOMING ? 'قائمة الكتب الواردة' : 'قائمة الكتب الصادرة';
             return (

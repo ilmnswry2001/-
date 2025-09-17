@@ -15,6 +15,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, onAddBoo
     { view: View.DASHBOARD, label: 'لوحة الإحصائيات', icon: 'dashboard' as const, adminOnly: false },
     { view: View.INCOMING, label: 'الكتب الواردة', icon: 'inbox' as const, adminOnly: false },
     { view: View.OUTGOING, label: 'الكتب الصادرة', icon: 'outbox' as const, adminOnly: false },
+    { view: View.BARCODE_GENERATOR, label: 'مولّد الباركود', icon: 'barcode' as const, adminOnly: false },
     { view: View.USER_MANAGEMENT, label: 'إدارة المستخدمين', icon: 'users' as const, adminOnly: true },
   ];
 
